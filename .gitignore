@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+*.db
+budget_projet.db
+*.log
+.vscode/
+.idea/
+venv/
+env/
