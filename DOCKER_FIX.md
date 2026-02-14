@@ -29,6 +29,10 @@ nginx:
     DB_MYSQL_PASSWORD: "UserSql77123$"  # ✅ Correspond à MYSQL_PASSWORD
 ```
 
+**Autres améliorations** :
+- Suppression du champ `version: '3'` obsolète (recommandation Docker Compose moderne)
+- Le fichier suit maintenant le format Compose Specification actuel
+
 ## 🚀 Utilisation
 
 Pour lancer les services avec Docker Compose :
