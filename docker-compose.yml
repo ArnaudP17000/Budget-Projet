@@ -1,0 +1,32 @@
+version: '3'
+services:
+  nginx:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: nginx
+    ports:
+      - '80:80' # ne pas modifier
+      - '81:81'
+      - '443:443' # ne pas modifier
+    restart: always
+    environment:
+      DB_MYSQL_HOST: "db"
+      DB_MYSQL_PORT: 3306
+      DB_MYSQL_USER: "SqlManager" # à modifier - CORRIGÉ: doit correspondre à MYSQL_USER
+      DB_MYSQL_PASSWORD: "UserSql77123$" # à modifier - CORRIGÉ: doit correspondre à MYSQL_PASSWORD
+      DB_MYSQL_NAME: "nginx"
+    volumes:
+      - /docker/ngxmanager/data:/data
+      - /docker/ngxmanager/letsencrypt:/etc/letsencrypt
+    depends_on:
+      - db
+  db:
+    image: 'jc21/mariadb-aria:latest'
+    container_name: nginx-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 'SQLManager77123$' # à modifier
+      MYSQL_DATABASE: 'nginx'
+      MYSQL_USER: 'SqlManager' # à modifier
+      MYSQL_PASSWORD: 'UserSql77123$' # à modifier
+    volumes:
+      - /docker/ngxmanager/mysql:/var/lib/mysql
