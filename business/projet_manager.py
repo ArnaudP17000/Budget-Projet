@@ -30,6 +30,10 @@ class ProjetManager:
         rows = self.db.execute_query(query, tuple(params))
         return [self._row_to_projet(row) for row in rows]
     
+    def get_projets_by_statut(self, statut: str) -> List[Projet]:
+        """Get projects by status."""
+        return self.get_all_projets(statut=statut)
+    
     def get_projet_by_id(self, projet_id: int) -> Optional[Projet]:
         """Get project by ID."""
         query = "SELECT * FROM projets WHERE id = ?"
@@ -454,7 +458,7 @@ class ProjetManager:
             ws[f'B{row}'] = projet['service_demandeur']
             row += 1
             ws[f'A{row}'] = "Technologies:"
-            ws[f'B{row}'] = projet.get('technologies_utilisees', '')
+            ws[f'B{row}'] = projet['technologies_utilisees'] if 'technologies_utilisees' in projet.keys() else ''
             row += 1
             ws[f'A{row}'] = "Statut:"
             ws[f'B{row}'] = projet['statut']
