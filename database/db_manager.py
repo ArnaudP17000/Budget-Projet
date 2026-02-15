@@ -1,4 +1,4 @@
-﻿"""
+"""
 Database Manager for Budget Management Application.
 Handles SQLite database operations, schema creation, and triggers.
 """
