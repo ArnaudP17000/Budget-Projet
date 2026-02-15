@@ -118,13 +118,21 @@ class BudgetsView(ctk.CTkFrame):
         for widget in self.budgets_scroll.winfo_children():
             widget.destroy()
         
+        # Force update
+        self.budgets_scroll.update_idletasks()
+        
         # Get filters
-        annee = int(self.year_filter.get())
+        try:
+            year = int(self.year_filter.get())
+        except:
+            year = datetime.now().year
+        
         nature = self.nature_filter.get()
-        nature = None if nature == "Tous" else nature
+        if nature == "Tous":
+            nature = None
         
         # Load budgets
-        budgets = self.budget_manager.get_all_budgets(annee=annee, nature=nature)
+        budgets = self.budget_manager.get_all_budgets(annee=year, nature=nature)
         
         if not budgets:
             no_data_label = ctk.CTkLabel(
@@ -139,6 +147,9 @@ class BudgetsView(ctk.CTkFrame):
         # Display budgets
         for budget in budgets:
             self.create_budget_card(budget)
+        
+        # Force final update
+        self.update_idletasks()
     
     def create_budget_card(self, budget: Budget):
         """Create a budget card."""
@@ -153,191 +164,234 @@ class BudgetsView(ctk.CTkFrame):
         # Client and nature
         client_label = ctk.CTkLabel(
             info_frame,
-            text=f"🏢 {budget.client_nom}",
+            text=f"🏢 {self.get_client_name(budget.client_id)}",
             font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="white"
+            text_color=COLOR_PRIMARY
         )
-        client_label.grid(row=0, column=0, sticky="w", columnspan=2)
+        client_label.grid(row=0, column=0, sticky="w", pady=5)
         
         nature_color = COLOR_PRIMARY if budget.nature == NATURE_FONCTIONNEMENT else COLOR_SUCCESS
         nature_label = ctk.CTkLabel(
             info_frame,
             text=budget.nature,
-            font=ctk.CTkFont(size=12),
+            font=ctk.CTkFont(size=14, weight="bold"),
             text_color=nature_color
         )
-        nature_label.grid(row=0, column=2, sticky="e", padx=5)
+        nature_label.grid(row=0, column=1, sticky="e", pady=5)
         
-        # Budget details
-        details_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-        details_frame.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(10, 0))
-        details_frame.grid_columnconfigure((0, 1, 2), weight=1)
+        # Year and service
+        year_label = ctk.CTkLabel(
+            info_frame,
+            text=f"📅 Année: {budget.annee}",
+            font=ctk.CTkFont(size=14),
+            text_color="gray70"
+        )
+        year_label.grid(row=1, column=0, sticky="w", pady=2)
         
-        # Initial amount
-        ctk.CTkLabel(
-            details_frame,
-            text="Montant Initial",
-            font=ctk.CTkFont(size=11),
-            text_color="gray60"
-        ).grid(row=0, column=0, sticky="w")
-        
-        ctk.CTkLabel(
-            details_frame,
-            text=format_montant(budget.montant_initial),
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color="white"
-        ).grid(row=1, column=0, sticky="w")
-        
-        # Consumed amount
-        ctk.CTkLabel(
-            details_frame,
-            text="Consommé",
-            font=ctk.CTkFont(size=11),
-            text_color="gray60"
-        ).grid(row=0, column=1)
-        
-        ctk.CTkLabel(
-            details_frame,
-            text=format_montant(budget.montant_consomme),
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color=COLOR_DANGER
-        ).grid(row=1, column=1)
-        
-        # Available amount
-        ctk.CTkLabel(
-            details_frame,
-            text="Disponible",
-            font=ctk.CTkFont(size=11),
-            text_color="gray60"
-        ).grid(row=0, column=2, sticky="e")
-        
-        ctk.CTkLabel(
-            details_frame,
-            text=format_montant(budget.montant_disponible),
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color=COLOR_SUCCESS
-        ).grid(row=1, column=2, sticky="e")
-        
-        # Progress bar
-        if budget.montant_initial > 0:
-            pct = (budget.montant_consomme / budget.montant_initial) * 100
-            progress_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-            progress_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0))
-            
-            progress_bar = ctk.CTkProgressBar(
-                progress_frame,
-                width=400,
-                height=15,
-                progress_color=COLOR_DANGER if pct > 90 else COLOR_WARNING if pct > 75 else COLOR_SUCCESS
-            )
-            progress_bar.pack(fill="x")
-            progress_bar.set(min(pct / 100, 1.0))
-            
-            pct_label = ctk.CTkLabel(
-                progress_frame,
-                text=f"{pct:.1f}% consommé",
-                font=ctk.CTkFont(size=11),
-                text_color="gray60"
-            )
-            pct_label.pack()
-        
-        # Service
         if budget.service_demandeur:
             service_label = ctk.CTkLabel(
                 info_frame,
-                text=f"📋 Service: {budget.service_demandeur}",
-                font=ctk.CTkFont(size=11),
-                text_color="gray60"
+                text=f"🏛️ {budget.service_demandeur}",
+                font=ctk.CTkFont(size=14),
+                text_color="gray70"
             )
-            service_label.grid(row=3, column=0, columnspan=3, sticky="w", pady=(10, 0))
+            service_label.grid(row=1, column=1, sticky="e", pady=2)
         
-        # Action buttons
-        btn_frame = ctk.CTkFrame(card, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=15, pady=(0, 15))
+        # Amounts frame
+        amounts_frame = ctk.CTkFrame(card, fg_color="transparent")
+        amounts_frame.pack(fill="x", padx=15, pady=(0, 10))
+        amounts_frame.grid_columnconfigure((0, 1, 2), weight=1)
+        
+        # Initial amount
+        initial_frame = ctk.CTkFrame(amounts_frame, fg_color=COLOR_BG_CARD, corner_radius=5)
+        initial_frame.grid(row=0, column=0, sticky="ew", padx=5)
+        
+        ctk.CTkLabel(
+            initial_frame,
+            text="Initial",
+            font=ctk.CTkFont(size=12),
+            text_color="gray60"
+        ).pack(pady=(5, 0))
+        
+        ctk.CTkLabel(
+            initial_frame,
+            text=format_montant(budget.montant_initial),
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=COLOR_PRIMARY
+        ).pack(pady=(0, 5))
+        
+        # Consumed amount
+        consumed_frame = ctk.CTkFrame(amounts_frame, fg_color=COLOR_BG_CARD, corner_radius=5)
+        consumed_frame.grid(row=0, column=1, sticky="ew", padx=5)
+        
+        ctk.CTkLabel(
+            consumed_frame,
+            text="Consommé",
+            font=ctk.CTkFont(size=12),
+            text_color="gray60"
+        ).pack(pady=(5, 0))
+        
+        ctk.CTkLabel(
+            consumed_frame,
+            text=format_montant(budget.montant_consomme),
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=COLOR_WARNING
+        ).pack(pady=(0, 5))
+        
+        # Available amount
+        available_frame = ctk.CTkFrame(amounts_frame, fg_color=COLOR_BG_CARD, corner_radius=5)
+        available_frame.grid(row=0, column=2, sticky="ew", padx=5)
+        
+        ctk.CTkLabel(
+            available_frame,
+            text="Disponible",
+            font=ctk.CTkFont(size=12),
+            text_color="gray60"
+        ).pack(pady=(5, 0))
+        
+        available_color = COLOR_SUCCESS if budget.montant_disponible > 0 else COLOR_DANGER
+        ctk.CTkLabel(
+            available_frame,
+            text=format_montant(budget.montant_disponible),
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=available_color
+        ).pack(pady=(0, 5))
+        
+        # Progress bar
+        progress_frame = ctk.CTkFrame(card, fg_color="transparent")
+        progress_frame.pack(fill="x", padx=15, pady=(0, 10))
+        
+        percentage = (budget.montant_consomme / budget.montant_initial * 100) if budget.montant_initial > 0 else 0
+        
+        progress = ctk.CTkProgressBar(
+            progress_frame,
+            width=400,
+            height=20,
+            corner_radius=10
+        )
+        progress.pack(fill="x")
+        progress.set(percentage / 100)
+        
+        # Progress color based on percentage
+        if percentage >= 90:
+            progress.configure(progress_color=COLOR_DANGER)
+        elif percentage >= 70:
+            progress.configure(progress_color=COLOR_WARNING)
+        else:
+            progress.configure(progress_color=COLOR_SUCCESS)
+        
+        percentage_label = ctk.CTkLabel(
+            progress_frame,
+            text=f"{percentage:.1f}%",
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        percentage_label.pack(pady=2)
+        
+        # Actions
+        actions_frame = ctk.CTkFrame(card, fg_color="transparent")
+        actions_frame.pack(fill="x", padx=15, pady=(0, 10))
         
         edit_btn = ctk.CTkButton(
-            btn_frame,
+            actions_frame,
             text="✏️ Modifier",
-            command=lambda b=budget: self.show_edit_dialog(b),
-            width=100,
-            height=28,
+            command=lambda: self.show_edit_dialog(budget),
+            width=120,
+            height=32,
             fg_color=COLOR_PRIMARY,
             hover_color=COLOR_SUCCESS
         )
-        edit_btn.pack(side="right", padx=5)
+        edit_btn.pack(side="left", padx=5)
         
         delete_btn = ctk.CTkButton(
-            btn_frame,
+            actions_frame,
             text="🗑️ Supprimer",
-            command=lambda b=budget: self.delete_budget(b),
-            width=100,
-            height=28,
+            command=lambda: self.delete_budget(budget),
+            width=120,
+            height=32,
             fg_color=COLOR_DANGER,
             hover_color="#cc0000"
         )
-        delete_btn.pack(side="right", padx=5)
+        delete_btn.pack(side="left", padx=5)
+    
+    def get_client_name(self, client_id: int) -> str:
+        """Get client name by ID."""
+        client = self.client_manager.get_client_by_id(client_id)
+        return client.nom if client else "Inconnu"
     
     def show_create_dialog(self):
         """Show dialog to create a new budget."""
-        dialog = BudgetDialog(self, self.db_manager, title="Créer un Budget")
-        dialog.wait_window()
+        dialog = BudgetDialog(self, self.db_manager, None)
+        self.wait_window(dialog)
         if dialog.result:
-            self.load_budgets()
+            # Force reload with a small delay to ensure dialog is fully closed
+            self.after(50, self.load_budgets)
     
     def show_edit_dialog(self, budget: Budget):
         """Show dialog to edit a budget."""
-        dialog = BudgetDialog(self, self.db_manager, budget=budget, title="Modifier le Budget")
-        dialog.wait_window()
+        dialog = BudgetDialog(self, self.db_manager, budget)
+        self.wait_window(dialog)
         if dialog.result:
-            self.load_budgets()
+            # Force reload with a small delay
+            self.after(50, self.load_budgets)
     
     def delete_budget(self, budget: Budget):
         """Delete a budget."""
-        if messagebox.askyesno(
+        confirm = messagebox.askyesno(
             "Confirmation",
-            f"Voulez-vous vraiment supprimer ce budget?\n\n"
-            f"Client: {budget.client_nom}\n"
+            f"Voulez-vous vraiment supprimer ce budget ?\n\n"
+            f"Client: {self.get_client_name(budget.client_id)}\n"
             f"Année: {budget.annee}\n"
             f"Nature: {budget.nature}"
-        ):
-            try:
-                self.budget_manager.delete_budget(budget.id)
-                messagebox.showinfo("Succès", "Budget supprimé avec succès")
+        )
+        
+        if confirm:
+            success, message = self.budget_manager.delete_budget(budget.id)
+            if success:
+                messagebox.showinfo("Succès", message)
                 self.load_budgets()
-            except Exception as e:
-                messagebox.showerror("Erreur", f"Erreur lors de la suppression:\n{e}")
+            else:
+                messagebox.showerror("Erreur", message)
     
     def show_report_dialog(self):
-        """Show dialog to report budgets to next year."""
-        dialog = ReportBudgetDialog(self, self.db_manager)
-        dialog.wait_window()
-        if dialog.result:
-            self.load_budgets()
+        """Show dialog to report budgets from year N to N+1."""
+        messagebox.showinfo("Information", "Fonctionnalité à venir")
 
 
 class BudgetDialog(ctk.CTkToplevel):
     """Dialog for creating/editing budgets."""
     
-    def __init__(self, parent, db_manager: DatabaseManager, budget: Optional[Budget] = None, title: str = "Budget"):
+    def __init__(self, parent, db_manager: DatabaseManager, budget: Optional[Budget] = None):
+        """Initialize dialog."""
         super().__init__(parent)
+        
         self.db_manager = db_manager
         self.budget_manager = BudgetManager(db_manager)
         self.client_manager = ClientManager(db_manager)
         self.budget = budget
-        self.result = None
+        self.result = False
         
-        self.title(title)
-        self.geometry("500x600")
-        self.resizable(False, False)
+        # Window configuration
+        self.title("Modifier le budget" if budget else "Nouveau budget")
+        self.geometry("500x550")
+        self.resizable(False, True)
         
-        # Make dialog modal
+        # Make modal
         self.transient(parent)
         self.grab_set()
+        
+        # Center window
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - (500 // 2)
+        y = (self.winfo_screenheight() // 2) - (450 // 2)
+        self.geometry(f"500x450+{x}+{y}")
         
         self.create_widgets()
         
         if budget:
-            self.populate_data()
+            self.load_budget_data()
+        
+        # Focus on first field
+        self.after(100, lambda: self.client_combo.focus())
     
     def create_widgets(self):
         """Create dialog widgets."""
@@ -346,216 +400,196 @@ class BudgetDialog(ctk.CTkToplevel):
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
         # Client
-        ctk.CTkLabel(main_frame, text="Client *", anchor="w").pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(
+            main_frame,
+            text="Client *",
+            font=ctk.CTkFont(size=14)
+        ).pack(anchor="w", pady=(0, 5))
+        
         clients = self.client_manager.get_all_clients()
-        client_names = {c.nom: c.id for c in clients if c.actif}
-        self.client_combo = ctk.CTkComboBox(main_frame, values=list(client_names.keys()))
-        self.client_combo.pack(fill="x", pady=(0, 15))
-        self.client_combo.client_names = client_names
+        client_names = [c.nom for c in clients if c.actif]
+        
+        self.client_combo = ctk.CTkComboBox(
+            main_frame,
+            values=["Sélectionner..."] + client_names,
+            width=460,
+            height=35
+        )
+        self.client_combo.set("Sélectionner...")
+        self.client_combo.pack(pady=(0, 15))
+        
+        # Store client mapping
+        self.client_combo.client_map = {c.nom: c.id for c in clients if c.actif}
         
         # Year
-        ctk.CTkLabel(main_frame, text="Année *", anchor="w").pack(fill="x", pady=(0, 5))
-        current_year = datetime.now().year
-        years = [str(y) for y in range(current_year - 1, current_year + 5)]
-        self.year_combo = ctk.CTkComboBox(main_frame, values=years)
-        self.year_combo.set(str(current_year))
-        self.year_combo.pack(fill="x", pady=(0, 15))
+        ctk.CTkLabel(
+            main_frame,
+            text="Année *",
+            font=ctk.CTkFont(size=14)
+        ).pack(anchor="w", pady=(0, 5))
+        
+        self.year_entry = ctk.CTkEntry(
+            main_frame,
+            width=460,
+            height=35,
+            placeholder_text="2026"
+        )
+        self.year_entry.pack(pady=(0, 15))
         
         # Nature
-        ctk.CTkLabel(main_frame, text="Nature *", anchor="w").pack(fill="x", pady=(0, 5))
-        self.nature_combo = ctk.CTkComboBox(main_frame, values=NATURES_BUDGET)
-        self.nature_combo.pack(fill="x", pady=(0, 15))
+        ctk.CTkLabel(
+            main_frame,
+            text="Nature *",
+            font=ctk.CTkFont(size=14)
+        ).pack(anchor="w", pady=(0, 5))
         
-        # Initial amount
-        ctk.CTkLabel(main_frame, text="Montant Initial (€) *", anchor="w").pack(fill="x", pady=(0, 5))
-        self.montant_entry = ctk.CTkEntry(main_frame, placeholder_text="0.00")
-        self.montant_entry.pack(fill="x", pady=(0, 15))
+        self.nature_combo = ctk.CTkComboBox(
+            main_frame,
+            values=["Sélectionner..."] + NATURES_BUDGET,
+            width=460,
+            height=35
+        )
+        self.nature_combo.set("Sélectionner...")
+        self.nature_combo.pack(pady=(0, 15))
         
-        # Service
-        ctk.CTkLabel(main_frame, text="Service Demandeur", anchor="w").pack(fill="x", pady=(0, 5))
-        self.service_entry = ctk.CTkEntry(main_frame, placeholder_text="Optionnel")
-        self.service_entry.pack(fill="x", pady=(0, 15))
+        # Montant initial
+        ctk.CTkLabel(
+            main_frame,
+            text="Montant initial *",
+            font=ctk.CTkFont(size=14)
+        ).pack(anchor="w", pady=(0, 5))
+        
+        self.montant_entry = ctk.CTkEntry(
+            main_frame,
+            width=460,
+            height=35,
+            placeholder_text="0.00"
+        )
+        self.montant_entry.pack(pady=(0, 15))
+        
+        # Service demandeur
+        ctk.CTkLabel(
+            main_frame,
+            text="Service demandeur",
+            font=ctk.CTkFont(size=14)
+        ).pack(anchor="w", pady=(0, 5))
+        
+        self.service_entry = ctk.CTkEntry(
+            main_frame,
+            width=460,
+            height=35,
+            placeholder_text="Nom du service"
+        )
+        self.service_entry.pack(pady=(0, 20))
         
         # Buttons
-        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(20, 0))
+        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        button_frame.pack(fill="x")
         
         cancel_btn = ctk.CTkButton(
-            btn_frame,
+            button_frame,
             text="Annuler",
             command=self.destroy,
-            width=100,
+            width=220,
+            height=40,
             fg_color="gray40",
-            hover_color="gray50"
+            hover_color="gray30"
         )
-        cancel_btn.pack(side="right", padx=5)
+        cancel_btn.pack(side="left", padx=(0, 10))
         
         save_btn = ctk.CTkButton(
-            btn_frame,
+            button_frame,
             text="Enregistrer",
             command=self.save,
-            width=100,
+            width=220,
+            height=40,
             fg_color=COLOR_SUCCESS,
             hover_color=COLOR_PRIMARY
         )
-        save_btn.pack(side="right", padx=5)
+        save_btn.pack(side="right")
     
-    def populate_data(self):
-        """Populate form with budget data."""
-        if self.budget:
-            self.client_combo.set(self.budget.client_nom)
-            self.year_combo.set(str(self.budget.annee))
-            self.nature_combo.set(self.budget.nature)
-            self.montant_entry.insert(0, str(self.budget.montant_initial))
-            if self.budget.service_demandeur:
-                self.service_entry.insert(0, self.budget.service_demandeur)
+    def load_budget_data(self):
+        """Load budget data into form."""
+        if not self.budget:
+            return
+        
+        # Find and set client
+        client = self.client_manager.get_client_by_id(self.budget.client_id)
+        if client:
+            self.client_combo.set(client.nom)
+        
+        self.year_entry.insert(0, str(self.budget.annee))
+        self.nature_combo.set(self.budget.nature)
+        self.montant_entry.insert(0, str(self.budget.montant_initial))
+        
+        if self.budget.service_demandeur:
+            self.service_entry.insert(0, self.budget.service_demandeur)
     
     def save(self):
         """Save the budget."""
+        # Get values
+        client_name = self.client_combo.get()
+        if not client_name or client_name == "Sélectionner...":
+            messagebox.showerror("Erreur", "Veuillez sélectionner un client")
+            return
+        
+        client_id = self.client_combo.client_map.get(client_name)
+        if not client_id:
+            messagebox.showerror("Erreur", "Client invalide")
+            return
+        
         try:
-            # Validate
-            client_nom = self.client_combo.get()
-            if not client_nom or client_nom not in self.client_combo.client_names:
-                messagebox.showerror("Erreur", "Veuillez sélectionner un client")
-                return
-            
-            client_id = self.client_combo.client_names[client_nom]
-            annee = int(self.year_combo.get())
-            nature = self.nature_combo.get()
-            montant = float(self.montant_entry.get().replace(',', '.'))
-            service = self.service_entry.get().strip()
-            
-            if not validate_annee(annee):
-                messagebox.showerror("Erreur", "Année invalide")
-                return
-            
-            if not validate_montant(montant):
-                messagebox.showerror("Erreur", "Montant invalide")
-                return
-            
-            # Save
-            if self.budget:
-                # Update
-                self.budget.client_id = client_id
-                self.budget.annee = annee
-                self.budget.nature = nature
-                self.budget.montant_initial = montant
-                self.budget.service_demandeur = service if service else None
-                self.budget_manager.update_budget(self.budget)
-                messagebox.showinfo("Succès", "Budget modifié avec succès")
-            else:
-                # Create
-                self.budget_manager.create_budget(
-                    client_id=client_id,
-                    annee=annee,
-                    nature=nature,
-                    montant_initial=montant,
-                    service_demandeur=service if service else None
-                )
-                messagebox.showinfo("Succès", "Budget créé avec succès")
-            
-            self.result = True
-            self.destroy()
-            
-        except ValueError as e:
-            messagebox.showerror("Erreur", f"Valeur invalide: {e}")
-        except Exception as e:
-            messagebox.showerror("Erreur", f"Erreur lors de l'enregistrement:\n{e}")
-
-
-class ReportBudgetDialog(ctk.CTkToplevel):
-    """Dialog for reporting budgets to next year."""
-    
-    def __init__(self, parent, db_manager: DatabaseManager):
-        super().__init__(parent)
-        self.db_manager = db_manager
-        self.budget_manager = BudgetManager(db_manager)
-        self.result = None
+            annee = int(self.year_entry.get())
+        except ValueError:
+            messagebox.showerror("Erreur", "Année invalide")
+            return
         
-        self.title("Reporter les Budgets")
-        self.geometry("400x300")
-        self.resizable(False, False)
+        nature = self.nature_combo.get()
+        if not nature or nature == "Sélectionner...":
+            messagebox.showerror("Erreur", "Veuillez sélectionner une nature")
+            return
         
-        # Make dialog modal
-        self.transient(parent)
-        self.grab_set()
-        
-        self.create_widgets()
-    
-    def create_widgets(self):
-        """Create dialog widgets."""
-        main_frame = ctk.CTkFrame(self, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Info
-        info_label = ctk.CTkLabel(
-            main_frame,
-            text="Reporter les budgets d'une année à l'autre\n\n"
-                 "Les budgets de l'année source seront dupliqués\n"
-                 "vers l'année cible avec le montant initial identique.",
-            font=ctk.CTkFont(size=12),
-            text_color="gray70",
-            justify="center"
-        )
-        info_label.pack(pady=(0, 20))
-        
-        # Source year
-        ctk.CTkLabel(main_frame, text="Année Source:", anchor="w").pack(fill="x", pady=(0, 5))
-        current_year = datetime.now().year
-        years = [str(y) for y in range(current_year - 2, current_year + 3)]
-        self.source_year = ctk.CTkComboBox(main_frame, values=years)
-        self.source_year.set(str(current_year))
-        self.source_year.pack(fill="x", pady=(0, 15))
-        
-        # Target year
-        ctk.CTkLabel(main_frame, text="Année Cible:", anchor="w").pack(fill="x", pady=(0, 5))
-        self.target_year = ctk.CTkComboBox(main_frame, values=years)
-        self.target_year.set(str(current_year + 1))
-        self.target_year.pack(fill="x", pady=(0, 15))
-        
-        # Buttons
-        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(20, 0))
-        
-        cancel_btn = ctk.CTkButton(
-            btn_frame,
-            text="Annuler",
-            command=self.destroy,
-            width=100,
-            fg_color="gray40",
-            hover_color="gray50"
-        )
-        cancel_btn.pack(side="right", padx=5)
-        
-        report_btn = ctk.CTkButton(
-            btn_frame,
-            text="Reporter",
-            command=self.report,
-            width=100,
-            fg_color=COLOR_WARNING,
-            hover_color=COLOR_PRIMARY
-        )
-        report_btn.pack(side="right", padx=5)
-    
-    def report(self):
-        """Report budgets to next year."""
         try:
-            source = int(self.source_year.get())
-            target = int(self.target_year.get())
+            montant = float(self.montant_entry.get())
+        except ValueError:
+            messagebox.showerror("Erreur", "Montant invalide")
+            return
+        
+        service = self.service_entry.get()
+        
+        # Save
+        if self.budget:
+            # Update
+            self.budget.client_id = client_id
+            self.budget.annee = annee
+            self.budget.nature = nature
+            self.budget.montant_initial = montant
+            self.budget.service_demandeur = service if service else ""
             
-            if source == target:
-                messagebox.showerror("Erreur", "L'année source et l'année cible doivent être différentes")
-                return
+            success, message = self.budget_manager.update_budget(self.budget)
             
-            if messagebox.askyesno(
-                "Confirmation",
-                f"Reporter les budgets de {source} vers {target}?\n\n"
-                f"Cette opération créera de nouveaux budgets pour l'année {target}."
-            ):
-                count = self.budget_manager.reporter_budgets(source, target)
-                messagebox.showinfo("Succès", f"{count} budget(s) reporté(s) avec succès")
+            if success:
+                messagebox.showinfo("Succès", message)
                 self.result = True
                 self.destroy()
-                
-        except Exception as e:
-            messagebox.showerror("Erreur", f"Erreur lors du report:\n{e}")
+            else:
+                messagebox.showerror("Erreur", message)
+        else:
+            # Create
+            new_budget = Budget(
+                client_id=client_id,
+                annee=annee,
+                nature=nature,
+                montant_initial=montant,
+                montant_consomme=0.0,
+                service_demandeur=service if service else ""
+            )
+            
+            success, message, budget_id = self.budget_manager.create_budget(new_budget)
+            
+            if success:
+                messagebox.showinfo("Succès", message)
+                self.result = True
+                self.destroy()
+            else:
+                messagebox.showerror("Erreur", message)

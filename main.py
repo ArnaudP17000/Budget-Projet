@@ -2,6 +2,14 @@
 Budget Management Application - Main Entry Point
 Application de Gestion Budgétaire
 """
+"""""""""""test à retirer après"""
+import sys
+# Supprimer tous les modules en cache
+for module in list(sys.modules.keys()):
+    if module.startswith('business') or module.startswith('ui'):
+        del sys.modules[module]
+"""""""""""""""test à retirer après"""
+
 import customtkinter as ctk
 from ui.main_window import MainWindow
 from database.db_manager import DatabaseManager

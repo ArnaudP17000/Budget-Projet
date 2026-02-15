@@ -56,7 +56,14 @@ class BudgetManager:
         return None
     
     def create_budget(self, budget: Budget) -> tuple[bool, str, Optional[int]]:
-        """Create new budget."""
+        """Create new budget.
+        
+        Args:
+            budget: Budget object to create
+            
+        Returns:
+            Tuple of (success, message, budget_id)
+        """
         # Validate required fields
         if not budget.client_id:
             return False, "Client requis", None
@@ -86,12 +93,12 @@ class BudgetManager:
         try:
             query = """
                 INSERT INTO budgets (client_id, annee, nature, montant_initial, montant_consomme, service_demandeur)
-                VALUES (?, ?, ?, ?, 0, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
             """
             budget_id = self.db.execute_update(
                 query,
-                (budget.client_id, budget.annee, budget.nature, budget.montant_initial,
-                 budget.service_demandeur)
+                (budget.client_id, budget.annee, budget.nature, budget.montant_initial, 
+                 budget.montant_consomme or 0.0, budget.service_demandeur or "")
             )
             return True, "Budget créé avec succès", budget_id
         except Exception as e:
@@ -102,9 +109,20 @@ class BudgetManager:
         if not budget.id:
             return False, "ID budget requis"
         
-        # Validate fields
+        # Validate required fields
+        if not budget.client_id:
+            return False, "Client requis"
+        
+        valid, msg = validate_required_field(str(budget.annee), "Année")
+        if not valid:
+            return False, msg
+        
         if not validate_annee(budget.annee):
             return False, "Année invalide"
+        
+        valid, msg = validate_required_field(budget.nature, "Nature")
+        if not valid:
+            return False, msg
         
         if budget.nature not in NATURES_BUDGET:
             return False, f"Nature invalide. Valeurs acceptées: {', '.join(NATURES_BUDGET)}"
@@ -113,36 +131,23 @@ class BudgetManager:
             return False, "Montant initial invalide"
         
         try:
-            # Recalculate montant_disponible
-            montant_disponible = budget.montant_initial - budget.montant_consomme
-            
             query = """
                 UPDATE budgets
-                SET annee = ?, nature = ?, montant_initial = ?, 
-                    montant_disponible = ?, service_demandeur = ?
+                SET client_id = ?, annee = ?, nature = ?, 
+                    montant_initial = ?, service_demandeur = ?
                 WHERE id = ?
             """
             self.db.execute_update(
                 query,
-                (budget.annee, budget.nature, budget.montant_initial,
-                 montant_disponible, budget.service_demandeur, budget.id)
+                (budget.client_id, budget.annee, budget.nature, 
+                 budget.montant_initial, budget.service_demandeur or "", budget.id)
             )
-            return True, "Budget mis à jour avec succès"
+            return True, "Budget modifié avec succès"
         except Exception as e:
-            return False, f"Erreur lors de la mise à jour: {str(e)}"
+            return False, f"Erreur lors de la modification: {str(e)}"
     
     def delete_budget(self, budget_id: int) -> tuple[bool, str]:
-        """Delete budget if no BC are associated."""
-        # Check if there are validated BCs using this budget
-        query = """
-            SELECT COUNT(*) as count FROM bons_commande b
-            JOIN budgets bu ON b.client_id = bu.client_id AND b.nature = bu.nature
-            WHERE bu.id = ? AND b.valide = 1
-        """
-        result = self.db.execute_query(query, (budget_id,))
-        if result and result[0]['count'] > 0:
-            return False, "Impossible de supprimer: des bons de commande sont associés à ce budget"
-        
+        """Delete budget."""
         try:
             query = "DELETE FROM budgets WHERE id = ?"
             self.db.execute_update(query, (budget_id,))
@@ -150,79 +155,40 @@ class BudgetManager:
         except Exception as e:
             return False, f"Erreur lors de la suppression: {str(e)}"
     
-    def report_budget_to_next_year(self, budget_id: int) -> tuple[bool, str]:
-        """Report budget to next year with remaining amount."""
-        budget = self.get_budget_by_id(budget_id)
-        if not budget:
-            return False, "Budget introuvable"
-        
-        if budget.montant_disponible <= 0:
-            return False, "Aucun montant disponible à reporter"
-        
-        next_year = budget.annee + 1
-        
-        # Check if budget already exists for next year
-        existing = self.get_budget_by_client_year_nature(budget.client_id, next_year, budget.nature)
-        if existing:
-            return False, f"Un budget existe déjà pour l'année {next_year}"
-        
-        # Create new budget for next year
-        new_budget = Budget(
-            client_id=budget.client_id,
-            annee=next_year,
-            nature=budget.nature,
-            montant_initial=budget.montant_disponible,
-            montant_consomme=0,
-            montant_disponible=budget.montant_disponible,
-            service_demandeur=budget.service_demandeur
-        )
-        
-        success, msg, _ = self.create_budget(new_budget)
-        if success:
-            return True, f"Budget reporté avec succès sur l'année {next_year}"
-        return False, f"Erreur lors du report: {msg}"
-    
-    def check_disponibilite(self, client_id: int, nature: str, montant: float) -> tuple[bool, str]:
-        """Check if budget is available for a given amount."""
-        current_year = datetime.now().year
-        budget = self.get_budget_by_client_year_nature(client_id, current_year, nature)
-        
-        if not budget:
-            return False, f"Aucun budget {nature} trouvé pour l'année {current_year}"
-        
-        if budget.montant_disponible < montant:
-            return False, f"Budget insuffisant. Disponible: {budget.montant_disponible:.2f} €, Demandé: {montant:.2f} €"
-        
-        return True, "Budget disponible"
-    
-    def get_budget_statistics(self, annee: Optional[int] = None) -> dict:
-        """Get budget statistics."""
-        if not annee:
-            annee = datetime.now().year
-        
-        query = """
-            SELECT 
-                nature,
-                COUNT(*) as nb_budgets,
-                SUM(montant_initial) as total_initial,
-                SUM(montant_consomme) as total_consomme,
-                SUM(montant_disponible) as total_disponible
-            FROM budgets
-            WHERE annee = ?
-            GROUP BY nature
-        """
-        rows = self.db.execute_query(query, (annee,))
-        
-        stats = {}
-        for row in rows:
-            stats[row['nature']] = {
-                'nb_budgets': row['nb_budgets'],
-                'total_initial': row['total_initial'],
-                'total_consomme': row['total_consomme'],
-                'total_disponible': row['total_disponible']
-            }
-        
-        return stats
+    def report_budgets(self, from_year: int, to_year: int) -> tuple[bool, str]:
+        """Report budgets from one year to another."""
+        try:
+            # Get budgets from source year
+            budgets = self.get_all_budgets(annee=from_year)
+            
+            if not budgets:
+                return False, f"Aucun budget trouvé pour l'année {from_year}"
+            
+            reported_count = 0
+            for budget in budgets:
+                # Check if budget already exists for target year
+                existing = self.get_budget_by_client_year_nature(
+                    budget.client_id, to_year, budget.nature
+                )
+                
+                if not existing:
+                    # Create new budget for target year
+                    new_budget = Budget(
+                        client_id=budget.client_id,
+                        annee=to_year,
+                        nature=budget.nature,
+                        montant_initial=budget.montant_disponible,  # Report available amount
+                        montant_consomme=0.0,
+                        service_demandeur=budget.service_demandeur
+                    )
+                    
+                    success, _, _ = self.create_budget(new_budget)
+                    if success:
+                        reported_count += 1
+            
+            return True, f"{reported_count} budget(s) reporté(s) de {from_year} vers {to_year}"
+        except Exception as e:
+            return False, f"Erreur lors du report: {str(e)}"
     
     def _row_to_budget(self, row) -> Budget:
         """Convert database row to Budget object."""
