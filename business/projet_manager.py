@@ -367,7 +367,7 @@ class ProjetManager:
                  frais_maintenance, technologies, notes)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
-            self.db.execute_query(query, (projet_id, nom_prospect, description_offre,
+            self.db.execute_update(query, (projet_id, nom_prospect, description_offre,
                                           investissement_licence, investissement_materiel,
                                           investissement_logiciel, cout_formation,
                                           frais_maintenance, technologies, notes))
