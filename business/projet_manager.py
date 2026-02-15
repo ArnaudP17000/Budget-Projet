@@ -460,7 +460,7 @@ class ProjetManager:
             ws[f'B{row}'] = projet['service_demandeur']
             row += 1
             ws[f'A{row}'] = "Technologies:"
-            ws[f'B{row}'] = projet.get('technologies_utilisees', '')
+            ws[f'B{row}'] = projet['technologies_utilisees'] if 'technologies_utilisees' in projet.keys() else ''
             row += 1
             ws[f'A{row}'] = "Statut:"
             ws[f'B{row}'] = projet['statut']
