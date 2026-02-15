@@ -156,9 +156,18 @@ class DatabaseManager:
                     date_mise_service DATE,
                     remarques_1 TEXT,
                     remarques_2 TEXT,
-                    statut TEXT DEFAULT 'En cours' CHECK(statut IN ('En cours', 'Terminé', 'Suspendu'))
+                    statut TEXT DEFAULT 'En cours' CHECK(statut IN ('En cours', 'Terminé', 'Suspendu')),
+                    investissement_licence REAL DEFAULT 0,
+                    investissement_materiel REAL DEFAULT 0,
+                    investissement_logiciel REAL DEFAULT 0,
+                    cout_formation REAL DEFAULT 0,
+                    frais_maintenance REAL DEFAULT 0,
+                    technologies_utilisees TEXT
                 )
             """)
+            
+            # Add new columns to existing projets table (migration)
+            self._migrate_projets_table(cursor)
             
             # Create investissements_projets table
             cursor.execute("""
@@ -183,6 +192,26 @@ class DatabaseManager:
                     telephone TEXT,
                     email TEXT,
                     notes TEXT,
+                    FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE CASCADE
+                )
+            """)
+            
+            # Create prospects_projets table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS prospects_projets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    projet_id INTEGER NOT NULL,
+                    nom_prospect TEXT NOT NULL,
+                    description_offre TEXT,
+                    investissement_licence REAL DEFAULT 0,
+                    investissement_materiel REAL DEFAULT 0,
+                    investissement_logiciel REAL DEFAULT 0,
+                    cout_formation REAL DEFAULT 0,
+                    frais_maintenance REAL DEFAULT 0,
+                    total_estime REAL DEFAULT 0,
+                    technologies TEXT,
+                    notes TEXT,
+                    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE CASCADE
                 )
             """)
@@ -223,6 +252,7 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_bc_valide ON bons_commande(valide)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_todo_complete ON todo_list(complete)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_contacts_client ON contacts(client_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_prospects_projet ON prospects_projets(projet_id)")
             
             # Create triggers
             
@@ -258,5 +288,76 @@ class DatabaseManager:
                 END
             """)
             
+            # Trigger 3: Calculate total for prospects on insert
+            cursor.execute("""
+                CREATE TRIGGER IF NOT EXISTS calcul_total_prospect
+                AFTER INSERT ON prospects_projets
+                FOR EACH ROW
+                BEGIN
+                    UPDATE prospects_projets 
+                    SET total_estime = 
+                        COALESCE(investissement_licence, 0) + 
+                        COALESCE(investissement_materiel, 0) + 
+                        COALESCE(investissement_logiciel, 0) + 
+                        COALESCE(cout_formation, 0) + 
+                        COALESCE(frais_maintenance, 0)
+                    WHERE id = NEW.id;
+                END
+            """)
+            
+            # Trigger 4: Update total for prospects on update
+            cursor.execute("""
+                CREATE TRIGGER IF NOT EXISTS update_total_prospect
+                AFTER UPDATE ON prospects_projets
+                FOR EACH ROW
+                BEGIN
+                    UPDATE prospects_projets 
+                    SET total_estime = 
+                        COALESCE(NEW.investissement_licence, 0) + 
+                        COALESCE(NEW.investissement_materiel, 0) + 
+                        COALESCE(NEW.investissement_logiciel, 0) + 
+                        COALESCE(NEW.cout_formation, 0) + 
+                        COALESCE(NEW.frais_maintenance, 0)
+                    WHERE id = NEW.id;
+                END
+            """)
+            
             conn.commit()
             print("✅ Database schema initialized successfully")
+    
+    def fetch_all(self, query: str, params: tuple = ()) -> List[sqlite3.Row]:
+        """Fetch all rows from a query (alias for execute_query)."""
+        return self.execute_query(query, params)
+    
+    def fetch_one(self, query: str, params: tuple = ()) -> Optional[sqlite3.Row]:
+        """Fetch one row from a query."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.fetchone()
+    
+    def _migrate_projets_table(self, cursor):
+        """Add new columns to existing projets table if they don't exist."""
+        # Get existing columns
+        cursor.execute("PRAGMA table_info(projets)")
+        existing_columns = {col[1] for col in cursor.fetchall()}
+        
+        # Define new columns with their definitions
+        new_columns = {
+            'investissement_licence': 'REAL DEFAULT 0',
+            'investissement_materiel': 'REAL DEFAULT 0',
+            'investissement_logiciel': 'REAL DEFAULT 0',
+            'cout_formation': 'REAL DEFAULT 0',
+            'frais_maintenance': 'REAL DEFAULT 0',
+            'technologies_utilisees': 'TEXT'
+        }
+        
+        # Add missing columns
+        for column_name, column_def in new_columns.items():
+            if column_name not in existing_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE projets ADD COLUMN {column_name} {column_def}")
+                    print(f"✅ Added column '{column_name}' to projets table")
+                except sqlite3.OperationalError as e:
+                    # Column might already exist
+                    print(f"⚠️  Column '{column_name}' might already exist: {e}")
