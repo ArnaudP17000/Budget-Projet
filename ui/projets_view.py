@@ -1060,6 +1060,7 @@ class ProjetDetailsDialog(ctk.CTkToplevel):
         
         # Get prospects
         prospects = self.projet_manager.get_prospects_by_projet(self.projet.id)
+        prospects = [dict(p) for p in prospects] if prospects else []
         
         if not prospects:
             empty_label = ctk.CTkLabel(
