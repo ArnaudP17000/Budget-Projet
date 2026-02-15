@@ -316,12 +316,12 @@ class ProjetManager:
             remarques_1=row['remarques_1'] or "",
             remarques_2=row['remarques_2'] or "",
             statut=row['statut'],
-            investissement_licence=row.get('investissement_licence', 0) or 0,
-            investissement_materiel=row.get('investissement_materiel', 0) or 0,
-            investissement_logiciel=row.get('investissement_logiciel', 0) or 0,
-            cout_formation=row.get('cout_formation', 0) or 0,
-            frais_maintenance=row.get('frais_maintenance', 0) or 0,
-            technologies_utilisees=row.get('technologies_utilisees', '') or ""
+            investissement_licence=row['investissement_licence'] if 'investissement_licence' in row.keys() else 0,
+            investissement_materiel=row['investissement_materiel'] if 'investissement_materiel' in row.keys() else 0,
+            investissement_logiciel=row['investissement_logiciel'] if 'investissement_logiciel' in row.keys() else 0,
+            cout_formation=row['cout_formation'] if 'cout_formation' in row.keys() else 0,
+            frais_maintenance=row['frais_maintenance'] if 'frais_maintenance' in row.keys() else 0,
+            technologies_utilisees=row['technologies_utilisees'] if 'technologies_utilisees' in row.keys() else ""
         )
     
     def _row_to_investissement(self, row) -> InvestissementProjet:

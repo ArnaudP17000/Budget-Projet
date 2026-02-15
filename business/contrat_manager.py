@@ -219,3 +219,9 @@ class ContratManager:
             statut=row['statut'],
             alerte_6_mois=bool(row['alerte_6_mois'])
         )
+    
+    def get_contrats_actifs(self):
+        """Récupère tous les contrats actifs"""
+        query = "SELECT * FROM contrats WHERE statut = 'Actif' ORDER BY date_fin ASC"
+        rows = self.db.fetch_all(query)
+        return [self._row_to_contrat(row) for row in rows]
