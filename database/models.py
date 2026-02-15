@@ -95,6 +95,12 @@ class Projet:
     remarques_1: str = ""
     remarques_2: str = ""
     statut: str = "En cours"
+    investissement_licence: float = 0.0
+    investissement_materiel: float = 0.0
+    investissement_logiciel: float = 0.0
+    cout_formation: float = 0.0
+    frais_maintenance: float = 0.0
+    technologies_utilisees: str = ""
 
 
 @dataclass
@@ -118,6 +124,24 @@ class ContactSourcing:
     telephone: str = ""
     email: str = ""
     notes: str = ""
+
+
+@dataclass
+class ProspectProjet:
+    """Prospect projet data model."""
+    id: Optional[int] = None
+    projet_id: Optional[int] = None
+    nom_prospect: str = ""
+    description_offre: str = ""
+    investissement_licence: float = 0.0
+    investissement_materiel: float = 0.0
+    investissement_logiciel: float = 0.0
+    cout_formation: float = 0.0
+    frais_maintenance: float = 0.0
+    total_estime: float = 0.0
+    technologies: str = ""
+    notes: str = ""
+    date_creation: Optional[datetime] = None
 
 
 @dataclass
