@@ -29,6 +29,12 @@ class ProjetManager:
         
         rows = self.db.execute_query(query, tuple(params))
         return [self._row_to_projet(row) for row in rows]
+        
+        
+    def get_projets_by_statut(self, statut: str) -> List[Projet]:
+        """Get projects by status."""
+        return self.get_all_projets(statut=statut)
+    
     
     def get_projet_by_id(self, projet_id: int) -> Optional[Projet]:
         """Get project by ID."""
