@@ -223,4 +223,5 @@ class ContratManager:
     def get_contrats_actifs(self):
         """Récupère tous les contrats actifs"""
         query = "SELECT * FROM contrats WHERE statut = 'Actif' ORDER BY date_fin ASC"
-        return self.db.fetch_all(query)
+        rows = self.db.fetch_all(query)
+        return [self._row_to_contrat(row) for row in rows]
