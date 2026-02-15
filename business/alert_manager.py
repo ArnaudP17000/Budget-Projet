@@ -46,6 +46,32 @@ class AlertManager:
             })
         
         return alerts
+        
+    def get_contrats_expiring(self, days: int = 180) -> List[Dict]:
+        """Get contracts expiring within specified days."""
+        query = """
+            SELECT c.*, cl.nom as client_nom
+            FROM contrats c
+            JOIN clients cl ON c.client_id = cl.id
+            WHERE c.statut = 'Actif' 
+            AND date(c.date_fin) <= date('now', '+' || ? || ' days')
+            ORDER BY c.date_fin
+        """
+        rows = self.db.execute_query(query, (days,))
+
+        contracts = []
+        for row in rows:
+            contracts.append({
+                'id': row['id'],
+                'numero_contrat': row['numero_contrat'],
+                'client_nom': row['client_nom'],
+                'date_fin': row['date_fin'],
+                'montant': row['montant'],
+                'description': row['description'] or "",
+                'type': 'contrat'
+            })
+
+        return contracts
     
     def get_budget_alerts(self) -> List[Dict]:
         """Get budget alerts (low available amount)."""
