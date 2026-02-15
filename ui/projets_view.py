@@ -103,9 +103,10 @@ class ProjetsView(ctk.CTkFrame):
         if not projets:
             no_data_label = ctk.CTkLabel(
                 self.projets_scroll,
-                text="Aucun projet trouvé",
-                font=ctk.CTkFont(size=16),
-                text_color="gray50"
+                text="📂 Aucun projet trouvé\n\nCliquez sur '➕ Nouveau Projet' pour commencer",
+                font=ctk.CTkFont(size=16, weight="bold"),
+                text_color="#0d7377",  # Couleur visible sur fond noir
+                justify="center"
             )
             no_data_label.pack(pady=50)
             return
