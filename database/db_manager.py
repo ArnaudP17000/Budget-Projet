@@ -1,9 +1,11 @@
-"""
+﻿"""
 Database Manager for Budget Management Application.
 Handles SQLite database operations, schema creation, and triggers.
 """
 import sqlite3
 import os
+import sys
+from pathlib import Path
 from typing import Optional, List, Tuple, Any
 from contextlib import contextmanager
 
@@ -11,10 +13,33 @@ from contextlib import contextmanager
 class DatabaseManager:
     """Manages database connections and operations."""
     
-    def __init__(self, db_path: str = "budget_projet.db"):
+    def __init__(self, db_path: str = None):
         """Initialize database manager with database path."""
+        if db_path is None:
+            # Creer un sous-repertoire data pour la base de donnees
+            if getattr(sys, 'frozen', False):
+                # Mode .exe : a cote de l executable
+                app_dir = Path(sys.executable).parent
+            else:
+                # Mode developpement : a la racine du projet
+                app_dir = Path(__file__).parent.parent
+            
+            # Creer le dossier data s il n existe pas
+            data_dir = app_dir / "data"
+            data_dir.mkdir(parents=True, exist_ok=True)
+            
+            db_path = str(data_dir / "budget_projet.db")
+        
         self.db_path = db_path
         self._connection = None
+    
+    def connect(self):
+        """Connect to database (no-op, connections are managed automatically)."""
+        pass
+    
+    def close(self):
+        """Close database connection (no-op, connections are managed automatically)."""
+        pass
     
     @contextmanager
     def get_connection(self):
@@ -97,7 +122,7 @@ class DatabaseManager:
                     date_fin DATE,
                     montant REAL DEFAULT 0,
                     description TEXT,
-                    statut TEXT DEFAULT 'Actif' CHECK(statut IN ('Actif', 'Expiré', 'Résilié')),
+                    statut TEXT DEFAULT 'Actif' CHECK(statut IN ('Actif', 'Expire', 'Resilie')),
                     alerte_6_mois INTEGER DEFAULT 0,
                     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
                     FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
@@ -128,7 +153,7 @@ class DatabaseManager:
                     client_id INTEGER NOT NULL,
                     contrat_id INTEGER,
                     nature TEXT NOT NULL CHECK(nature IN ('Fonctionnement', 'Investissement')),
-                    type TEXT NOT NULL CHECK(type IN ('Assistance', 'Formation', 'Prestation', 'Matériel', 'Licences')),
+                    type TEXT NOT NULL CHECK(type IN ('Assistance', 'Formation', 'Prestation', 'Materiel', 'Licences')),
                     service_demandeur TEXT,
                     montant REAL DEFAULT 0,
                     valide INTEGER DEFAULT 0,
@@ -156,7 +181,7 @@ class DatabaseManager:
                     date_mise_service DATE,
                     remarques_1 TEXT,
                     remarques_2 TEXT,
-                    statut TEXT DEFAULT 'En cours' CHECK(statut IN ('En cours', 'Terminé', 'Suspendu')),
+                    statut TEXT DEFAULT 'En cours' CHECK(statut IN ('En cours', 'Termine', 'Suspendu')),
                     investissement_licence REAL DEFAULT 0,
                     investissement_materiel REAL DEFAULT 0,
                     investissement_logiciel REAL DEFAULT 0,
@@ -174,7 +199,7 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS investissements_projets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     projet_id INTEGER NOT NULL,
-                    type TEXT NOT NULL CHECK(type IN ('Matériel', 'Licence', 'Installation', 'Formation', 'Accompagnement')),
+                    type TEXT NOT NULL CHECK(type IN ('Materiel', 'Licence', 'Installation', 'Formation', 'Accompagnement')),
                     description TEXT,
                     montant_estime REAL DEFAULT 0,
                     FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE CASCADE
@@ -255,8 +280,6 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_prospects_projet ON prospects_projets(projet_id)")
             
             # Create triggers
-            
-            # Trigger 1: Update budget disponible after insert
             cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS update_budget_disponible
                 AFTER INSERT ON budgets
@@ -268,7 +291,6 @@ class DatabaseManager:
                 END
             """)
             
-            # Trigger 2: Impute BC to budget when validated
             cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS imputer_bc_au_budget
                 AFTER UPDATE OF valide ON bons_commande
@@ -288,7 +310,6 @@ class DatabaseManager:
                 END
             """)
             
-            # Trigger 3: Calculate total for prospects on insert
             cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS calcul_total_prospect
                 AFTER INSERT ON prospects_projets
@@ -305,7 +326,6 @@ class DatabaseManager:
                 END
             """)
             
-            # Trigger 4: Update total for prospects on update
             cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS update_total_prospect
                 AFTER UPDATE ON prospects_projets
@@ -323,7 +343,7 @@ class DatabaseManager:
             """)
             
             conn.commit()
-            print("✅ Database schema initialized successfully")
+            print("Database schema initialized successfully")
     
     def fetch_all(self, query: str, params: tuple = ()) -> List[sqlite3.Row]:
         """Fetch all rows from a query (alias for execute_query)."""
@@ -338,11 +358,9 @@ class DatabaseManager:
     
     def _migrate_projets_table(self, cursor):
         """Add new columns to existing projets table if they don't exist."""
-        # Get existing columns
         cursor.execute("PRAGMA table_info(projets)")
         existing_columns = {col[1] for col in cursor.fetchall()}
         
-        # Define new columns with their definitions
         new_columns = {
             'investissement_licence': 'REAL DEFAULT 0',
             'investissement_materiel': 'REAL DEFAULT 0',
@@ -352,12 +370,10 @@ class DatabaseManager:
             'technologies_utilisees': 'TEXT'
         }
         
-        # Add missing columns
         for column_name, column_def in new_columns.items():
             if column_name not in existing_columns:
                 try:
                     cursor.execute(f"ALTER TABLE projets ADD COLUMN {column_name} {column_def}")
-                    print(f"✅ Added column '{column_name}' to projets table")
-                except sqlite3.OperationalError as e:
-                    # Column might already exist
-                    print(f"⚠️  Column '{column_name}' might already exist: {e}")
+                    print(f"Added column {column_name} to projets table")
+                except sqlite3.OperationalError:
+                    pass
