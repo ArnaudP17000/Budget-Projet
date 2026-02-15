@@ -405,7 +405,7 @@ class ProjetManager:
         """Supprime un prospect"""
         try:
             query = "DELETE FROM prospects_projets WHERE id = ?"
-            self.db.execute_query(query, (prospect_id,))
+            self.db.execute_update(query, (prospect_id,))
             return True, "Prospect supprimé avec succès"
         except Exception as e:
             return False, f"Erreur lors de la suppression: {str(e)}"
